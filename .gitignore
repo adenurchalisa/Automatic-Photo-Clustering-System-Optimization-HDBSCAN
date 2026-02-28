@@ -1,0 +1,50 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+
+# Data files (too large for GitHub)
+*.pkl
+*.pickle
+*.npy
+*.npz
+*.h5
+*.hdf5
+
+# Image files
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+
+# Model files
+*.onnx
+*.pth
+*.pt
+*.weights
+
+# Results (large files)
+results/*.pkl
+results/plots/*.png
+
+# Environment
+.env
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
