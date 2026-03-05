@@ -33,7 +33,8 @@ Dataset Foto
     │
     ├── Clustering Optimization
     │       ├── Hyperparameter tuning HDBSCAN (NB1–NB5)
-    │       ├── Distance metric comparison (NB6, NB8)
+    │       ├── Distance metric comparison incl. QJSD (NB6)
+    │       ├── Re-tuning dengan Correlation metric (NB8)
     │       ├── UMAP dimensionality reduction (NB9)
     │       ├── Angular + Soft Clustering (NB10)
     │       └── CLIP + UMAP + HDBSCAN (NB16)
@@ -54,7 +55,7 @@ Dataset Foto
 | NB3 | EDA & Baseline Clustering | Analisis data, visualisasi distribusi, baseline |
 | NB4 | Fokus Hyperparameter | Penyempitan rentang hyperparameter |
 | NB5 | Granular Hyperparameter | Fine-grained tuning parameter terpilih |
-| NB6 | Distance Metric Comparison | Perbandingan 8 metrik jarak (Euclidean, Cosine, Manhattan, dll.) |
+| NB6 | Distance Metric Comparison | Perbandingan metrik jarak termasuk **QJSD** (Quantum Jensen-Shannon Divergence, GPU-accelerated) vs Euclidean |
 | NB8 | Re-Tuning Correlation | Re-tuning dengan metrik Correlation terbaik |
 | NB9 | UMAP + HDBSCAN Pipeline | Reduksi dimensi UMAP sebelum HDBSCAN |
 | NB10 | Angular Distance + Soft Clustering | Soft clustering dengan angular distance |
@@ -68,6 +69,15 @@ Dataset Foto
 ---
 
 ## Ringkasan Hasil
+
+### NB6 — Distance Metric Comparison (mcs=20, ms=50)
+
+| Metrik | Clusters | Noise | Silhouette | Keterangan |
+|---|---|---|---|---|
+| **Euclidean** | **44** | **69.3%** | **0.3119** | **Terbaik — dijadikan baseline lanjut** |
+| QJSD (GPU/CuPy) | 64 | 36.3% | 0.1308 | Virosztek (2021); noise lebih rendah tapi silhouette lebih rendah |
+
+> **Catatan**: DBI tidak dihitung untuk QJSD karena sklearn hardcode Euclidean sehingga hasilnya tidak valid untuk metrik selain Euclidean.
 
 ### InsightFace Pipeline (per-wajah, 12.715 embeddings dari 2.533 foto)
 
