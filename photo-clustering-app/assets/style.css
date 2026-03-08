@@ -1,0 +1,24 @@
+/* Custom styling untuk FaceCluster */
+
+/* Hide Streamlit default hamburger & footer */
+#MainMenu {visibility: hidden;}
+footer {visibility: hidden;}
+
+/* Button styling */
+.stButton > button {
+    border-radius: 8px;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+
+/* Expander styling */
+.streamlit-expanderHeader {
+    font-weight: 600;
+    font-size: 14px;
+}
+
+/* Metric cards */
+[data-testid="stMetricValue"] {
+    font-size: 1.5rem;
+    font-weight: 700;
+}
