@@ -1,11 +1,11 @@
 """
 Semua hyperparameter dan konstanta.
-Nilai-nilai ini berasal dari hasil eksperimen NB9 (UMAP+HDBSCAN).
+Nilai-nilai ini berasal dari hasil eksperimen NB05 (FAISS + HDBSCAN).
 
-Konfigurasi terbaik (Best by Coverage Rate):
-  Coverage Rate : 99.3%  (baseline: 56.2%)
-  Silhouette    : 0.9041 (baseline: 0.4530)
-  n_clusters    : 95
+Konfigurasi terbaik (Final NB05):
+  Coverage Rate : 92.36%
+  Silhouette    : 0.3673
+  n_clusters    : 144
 """
 
 # InsightFace
@@ -13,19 +13,19 @@ FACE_MODEL_NAME    = "buffalo_l"    # Model InsightFace untuk deteksi + embeddin
 FACE_DET_SIZE      = (640, 640)     # Ukuran input face detection
 FACE_DET_THRESHOLD = 0.5            # Confidence threshold deteksi wajah
 
-# UMAP — dari hasil eksperimen NB9 (Best Coverage Rate)
-UMAP_N_COMPONENTS = 30              # 512-dim → 30-dim
-UMAP_N_NEIGHBORS  = 30              # Ukuran lingkungan lokal
-UMAP_MIN_DIST     = 0.0             # 0.0 untuk clustering (bukan visualisasi)
-UMAP_METRIC       = "cosine"        # ArcFace embedding → cosine lebih tepat
-UMAP_RANDOM_STATE = 42              # Reproducibility
-
-# HDBSCAN — dari hasil eksperimen NB9 (Best Coverage Rate)
-HDBSCAN_MIN_CLUSTER_SIZE         = 20    # Minimum anggota per cluster
-HDBSCAN_MIN_SAMPLES              = 20    # Kontrol konservatisme noise
-HDBSCAN_CLUSTER_SELECTION_METHOD = "eom" # "eom" atau "leaf"
+# HDBSCAN — dari hasil eksperimen NB05 (Final)
+# UMAP dihapus: direct HDBSCAN pada L2-normalized embeddings lebih stabil
+HDBSCAN_MIN_CLUSTER_SIZE         = 50      # Minimum anggota per cluster
+HDBSCAN_MIN_SAMPLES              = 5       # Kontrol konservatisme noise
+HDBSCAN_CLUSTER_SELECTION_METHOD = "eom"   # "eom" atau "leaf"
+HDBSCAN_METRIC                   = "euclidean"  # equiv. cosine karena embedding sudah L2-normalized
 
 # App limits
 MAX_PHOTOS_UPLOAD = 200                            # Batas upload untuk free tier
 SUPPORTED_FORMATS = [".jpg", ".jpeg", ".png"]
 TEMP_DIR          = "/tmp/facecluster"             # Direktori temporer
+
+# UI
+FACE_PADDING        = 0.1
+MAX_CLUSTER_PREVIEW = 18
+MAX_NOISE_PREVIEW   = 12

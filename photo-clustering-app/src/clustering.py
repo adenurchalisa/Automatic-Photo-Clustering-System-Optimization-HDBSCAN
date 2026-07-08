@@ -1,74 +1,53 @@
 """
-Modul clustering: UMAP dimensionality reduction + HDBSCAN.
-Pipeline dari eksperimen NB9 (hasil terbaik: Coverage 99.3%, Silhouette 0.9041).
+Modul clustering: HDBSCAN langsung pada L2-normalized embeddings.
+Pipeline dari eksperimen NB05 (hasil final: Coverage 92.36%, Silhouette 0.3673).
 
-Konfigurasi terbaik (Best by Coverage Rate):
-  UMAP: n_components=30, n_neighbors=30, metric=cosine, min_dist=0.0
-  HDBSCAN: min_cluster_size=20, min_samples=20, method=eom
+Konfigurasi final (NB05):
+  HDBSCAN: min_cluster_size=50, min_samples=5, metric=euclidean, method=eom
+  UMAP dihapus — direct HDBSCAN lebih stabil dan tidak menciptakan artefak kompresi.
 
 Fungsi utama:
-- reduce_dimensions(embeddings): UMAP reduction
-- cluster_faces(reduced_embeddings): HDBSCAN clustering
+- cluster_faces(embeddings): HDBSCAN clustering pada embedding
 - run_clustering_pipeline(all_faces): End-to-end dari embedding ke cluster assignment
 """
 
+import logging
+
 import hdbscan
 import numpy as np
-import umap
 from sklearn.metrics import silhouette_score
 
 from src.config import (
     HDBSCAN_CLUSTER_SELECTION_METHOD,
     HDBSCAN_MIN_CLUSTER_SIZE,
     HDBSCAN_MIN_SAMPLES,
-    UMAP_METRIC,
-    UMAP_MIN_DIST,
-    UMAP_N_COMPONENTS,
-    UMAP_N_NEIGHBORS,
-    UMAP_RANDOM_STATE,
+    HDBSCAN_METRIC,
 )
 
+logger = logging.getLogger(__name__)
 
-def reduce_dimensions(embeddings):
+
+def cluster_faces(embeddings):
     """
-    Reduksi dimensi embedding dari 512 → n_components menggunakan UMAP.
+    Cluster L2-normalized embeddings langsung dengan HDBSCAN.
+    Tidak pakai UMAP — sesuai hasil eksperimen NB05.
 
     Args:
-        embeddings: np.array shape (n_faces, 512)
-
-    Returns:
-        reduced: np.array shape (n_faces, n_components)
-        reducer: fitted UMAP object (untuk transform data baru jika diperlukan)
-    """
-    reducer = umap.UMAP(
-        n_components=UMAP_N_COMPONENTS,
-        n_neighbors=UMAP_N_NEIGHBORS,
-        min_dist=UMAP_MIN_DIST,
-        metric=UMAP_METRIC,
-        random_state=UMAP_RANDOM_STATE,
-    )
-    reduced = reducer.fit_transform(embeddings)
-    return reduced, reducer
-
-
-def cluster_faces(reduced_embeddings):
-    """
-    Clustering embedding yang sudah direduksi menggunakan HDBSCAN.
-
-    Args:
-        reduced_embeddings: np.array shape (n_faces, n_components)
+        embeddings: np.array shape (n_faces, 512), sudah L2-normalized
 
     Returns:
         labels: np.array of cluster labels (-1 = noise)
-        clusterer: fitted HDBSCAN object
         metrics: Dict {n_clusters, n_noise, noise_pct, coverage_pct, silhouette}
     """
     clusterer = hdbscan.HDBSCAN(
         min_cluster_size=HDBSCAN_MIN_CLUSTER_SIZE,
         min_samples=HDBSCAN_MIN_SAMPLES,
         cluster_selection_method=HDBSCAN_CLUSTER_SELECTION_METHOD,
+        metric=HDBSCAN_METRIC,
+        approx_min_span_tree=True,
+        core_dist_n_jobs=-1,
     )
-    labels = clusterer.fit_predict(reduced_embeddings)
+    labels = clusterer.fit_predict(embeddings)
 
     n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
     n_noise = int((labels == -1).sum())
@@ -85,12 +64,18 @@ def cluster_faces(reduced_embeddings):
     # Silhouette hanya bisa dihitung jika ada > 1 cluster dan tidak semua noise
     clustered_mask = labels >= 0
     if n_clusters > 1 and clustered_mask.sum() > n_clusters:
-        metrics["silhouette"] = round(
-            silhouette_score(reduced_embeddings[clustered_mask], labels[clustered_mask]),
-            4,
-        )
+        try:
+            sample_size = min(2000, int(clustered_mask.sum()))
+            rng = np.random.default_rng(42)
+            sample_idx = rng.choice(np.where(clustered_mask)[0], size=sample_size, replace=False)
+            metrics["silhouette"] = round(
+                float(silhouette_score(embeddings[sample_idx], labels[sample_idx])),
+                4,
+            )
+        except Exception as e:
+            logger.warning("Silhouette gagal: %s", e)
 
-    return labels, clusterer, metrics
+    return labels, metrics
 
 
 def run_clustering_pipeline(all_faces, progress_callback=None):
@@ -107,22 +92,21 @@ def run_clustering_pipeline(all_faces, progress_callback=None):
         metrics: Dict metrik evaluasi clustering
     """
     if progress_callback:
-        progress_callback(1, 3, "Mereduksi dimensi (UMAP)...")
+        progress_callback(1, 2, "Menyiapkan embeddings...")
 
     # Kumpulkan semua embedding
-    embeddings = np.array([f["embedding"] for f in all_faces])
+    embeddings = np.array([f["embedding"] for f in all_faces], dtype=np.float32)
 
-    # UMAP
-    reduced, _ = reduce_dimensions(embeddings)
-
-    if progress_callback:
-        progress_callback(2, 3, "Mengelompokkan wajah (HDBSCAN)...")
-
-    # HDBSCAN
-    labels, _, metrics = cluster_faces(reduced)
+    # Pastikan L2-normalized (InsightFace buffalo_l sudah normalized, ini safeguard)
+    norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
+    norms = np.where(norms == 0, 1, norms)
+    embeddings = embeddings / norms
 
     if progress_callback:
-        progress_callback(3, 3, "Menyusun hasil...")
+        progress_callback(2, 2, "Mengelompokkan wajah (HDBSCAN)...")
+
+    # HDBSCAN langsung pada embeddings
+    labels, metrics = cluster_faces(embeddings)
 
     # Organize ke dalam clusters
     clusters = {}
@@ -137,7 +121,12 @@ def run_clustering_pipeline(all_faces, progress_callback=None):
                 clusters[label] = []
             clusters[label].append(face)
 
-    # Sort clusters by size (terbesar dulu)
+    # Sort clusters by size (terbesar dulu) dan re-index dari 0
     clusters = dict(sorted(clusters.items(), key=lambda x: len(x[1]), reverse=True))
+    clusters = {i: v for i, (_, v) in enumerate(clusters.items())}
 
+    logger.info(
+        "Clustering selesai: %d cluster, coverage %.1f%%, noise %.1f%%",
+        metrics["n_clusters"], metrics["coverage_pct"], metrics["noise_pct"],
+    )
     return clusters, noise_faces, metrics
